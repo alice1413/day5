@@ -1,5 +1,6 @@
 """서울 행정동별 출동건수 Choropleth 지도."""
 
+import base64
 import json
 from pathlib import Path
 
@@ -10,19 +11,18 @@ import streamlit as st
 
 st.set_page_config(page_title="서울 행정동 출동건수", page_icon="🚒", layout="wide")
 
-DATA_PATH = Path(__file__).parent / "data" / "dong_emergency_count.geojson"
+DATA_PATH = Path(__file__).parent / "data" / "dong_emergency_count.geojson.b64"
 CITY_HALL = {"lat": 37.5665, "lon": 126.9780}
 
 
 @st.cache_data
 def load_geojson(path: str) -> dict:
-    """GeoJSON을 한 번만 읽어 화면 갱신 시에도 빠르게 표시한다."""
-    with open(path, encoding="utf-8") as file:
-        return json.load(file)
+    """저장소에 포함된 행정동 GeoJSON 데이터를 읽는다."""
+    encoded = Path(path).read_text(encoding="ascii").strip()
+    return json.loads(base64.b64decode(encoded).decode("utf-8"))
 
 
 def make_dataframe(geojson: dict) -> pd.DataFrame:
-    """Plotly 색상 및 호버에 필요한 속성만 표 형태로 만든다."""
     return pd.DataFrame(
         [
             {
@@ -71,8 +71,12 @@ def build_map(data: pd.DataFrame, geojson: dict):
 st.title("서울 행정동별 출동건수")
 st.caption("색이 진한 빨간색일수록 출동건수가 많습니다.")
 
-geojson = load_geojson(str(DATA_PATH))
-df = make_dataframe(geojson)
+try:
+    geojson = load_geojson(str(DATA_PATH))
+    df = make_dataframe(geojson)
+except (FileNotFoundError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+    st.error(f"행정동 데이터를 불러오지 못했습니다: {error}")
+    st.stop()
 
 only_mok_dong = st.toggle("목*동만 보기", value=False)
 if only_mok_dong:
